@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql
+    environment:
+      MYSQL_ROOT_USERNAME: root
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: explorer
+    ports:
+      - 3306:3306
+      
+  redis:
+    image: "redis"
+    ports:
+      - 6379:6379
+
+  es01:
+    image: elasticsearch:8.10.2
+    container_name: es01
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01
+      - cluster.initial_master_nodes=es01
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data:/usr/src/elasticsearch/data
+    ports:
+      - 9200:9200
+
+volumes:
+  es_data:
