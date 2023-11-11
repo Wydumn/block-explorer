@@ -8,6 +8,7 @@ import * as entities from './entities';
 import * as repositories from './repositories';
 import * as services from './services';
 import { BullModule } from '@nestjs/bull';
+import { BlockProcessor } from './processors/block.processor';
 
 
 @Module({
@@ -23,7 +24,7 @@ import { BullModule } from '@nestjs/bull';
         TypeOrmModule.forFeature(Object.values(entities)),
         DatabaseModule.forRepository(Object.values(repositories)),
         BullModule.registerQueue({
-            name: 'syncTx',
+            name: 'block'
         })
     ]
 })

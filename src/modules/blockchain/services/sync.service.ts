@@ -1,69 +1,23 @@
-import { Injectable, ValidationPipe } from '@nestjs/common';
+import { Inject, Injectable, ValidationPipe } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EthersService } from './ethers.service';
 import { BlockService } from './block.service';
 import { TransactionService } from './tx.service';
-import { CreateBlockDto } from '../dtos/block.dto';
-import { AddressService } from './address.service';
-import { AddressRepository } from '../repositories';
-import { CreateAddressDto } from '../dtos/address.dto';
 import { CreateTxDto } from '../dtos/tx.dto';
 import { omit } from 'lodash';
-import { InjectQueue, Process, Processor } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
+import Redis from 'ioredis';
 
 @Injectable()
-@Processor('syncTx')
 export class SyncService {
     constructor(
         private ethersService: EthersService,
         private blockService: BlockService,
         private txService: TransactionService,
-        private addressService: AddressService,
-        private addressRepository: AddressRepository,
-        @InjectQueue('syncTx') private retryQueue: Queue,
+        @Inject('REDIS_CLIENT') private client: Redis,
+        @InjectQueue('block') private blockQueue: Queue,
     ) {}
-
-    async syncAddress(address: string) {
-        const addrDetail = await this.addressRepository.findOne({ where: { address } });
-
-        let nonce, balance;
-
-        [nonce, balance] = await Promise.all([
-            await this.ethersService.getTransactionCount(address),
-            await this.ethersService.getBalance(address),
-        ]);
-
-        const addressObj = {
-            address,
-            balance,
-            nonce,
-        };
-
-        // console.log("\n =========== addressObj ================================= \n", addressObj);
-        const addressDto = await new ValidationPipe({
-            skipMissingProperties: true,
-        }).transform(addressObj, {
-            type: 'body',
-            metatype: CreateAddressDto,
-        });
-        // if address already exists, update
-        try {
-            if (!addrDetail) {
-                await this.addressService.create(addressDto);
-            } else {
-                await this.addressService.update({
-                    ...addressDto,
-                    id: addrDetail.id,
-                });
-            }
-        } catch (err) {
-            console.log(
-                '\n =========== addressDto ================================= \n',
-                addressDto,
-            );
-        }
-    }
 
     async syncTx(transactions: readonly string[]) {
         for (const tx of transactions) {
@@ -73,13 +27,6 @@ export class SyncService {
                 // create tx if not exist
                 const txDetail = await this.ethersService.getTransaction(tx);
                 const addresses = [txDetail.from, txDetail.to];
-
-                // create accounts for from and to
-                for (const addr of addresses) {
-                    if (addr) {
-                        await this.syncAddress(addr);
-                    }
-                }
 
                 /* let txDto;
       try { */
@@ -99,9 +46,7 @@ export class SyncService {
                     await this.txService.create(txDto);
                 } catch (err) {
                     console.log(err, '\n', txDto);
-                    await this.retryQueue.add({
-                        txSyncRetry: txDto,
-                    });
+                    // add to queue
                 }
             } else {
                 // if hard fork
@@ -109,41 +54,16 @@ export class SyncService {
         }
     }
 
-    async syncBlock(blockNumber: number) {
-        const block = await this.ethersService.getBlock(blockNumber);
-
-        // create miner
-        // if address already exists, update
-        await this.syncAddress(block.miner);
-
-        // validate and create new block
-        const blockDto = await new ValidationPipe({
-            skipMissingProperties: true,
-        }).transform(block, {
-            type: 'body',
-            metatype: CreateBlockDto,
-        });
-
-        await this.blockService.create(blockDto);
-        // create tx after block creation
-        await this.syncTx(block.transactions);
-    }
-
-    @Process()
-    async retryFailedTx(job: Job) {
-        console.log(job);
-    }
-
     // find block height of forked block
     async findFork(blockNumber: number, hash: string) {
         // iterate block before the block, compare hash with latestBlock hash
         let lastBlockNumber = blockNumber - 1;
-        let lastBlock = await this.blockService.getBlockByNumber(lastBlockNumber);
+        /* let lastBlock = await this.blockService.getBlockByNumber(lastBlockNumber);
 
         while (lastBlock.hash !== hash) {
             lastBlockNumber = lastBlockNumber - 1;
             lastBlock = await this.blockService.getBlockByNumber(lastBlockNumber);
-        }
+        } */
         return lastBlockNumber + 1;
     }
 
@@ -154,13 +74,40 @@ export class SyncService {
         }
     }
 
+    async calculateBlockRanges() {
+        const currentBlockNumber = await this.client.get('blockNumber');
+        console.log(currentBlockNumber === null);
+        const startBlock = currentBlockNumber === null ? 0 : parseInt(currentBlockNumber);
+        console.log("================================== redis get ==========================", currentBlockNumber, startBlock);
+        // set a variable name for the number of blocks that have been stored
+        const BLOCKS_PER_REQUST= 200, CONCURRENCY_NUM = 5;
+        let res = [];
+        for (let i = 0; i < CONCURRENCY_NUM; i++) {
+            res.push({
+                start: startBlock + BLOCKS_PER_REQUST * i +  1,
+                end: startBlock + BLOCKS_PER_REQUST * (i + 1)
+            })
+        }
+        return res;
+        
+    }
+
     @Cron(CronExpression.EVERY_10_SECONDS)
     async sync() {
-        // "latest" block onchain
-        const latestBlock = await this.ethersService.getLatestBlock();
-        // latest block local
-        const syncedBlock = await this.blockService.getLatestBlock();
-        if (!syncedBlock) {
+        const blockRanges = await this.calculateBlockRanges();
+
+        await Promise.all(
+            blockRanges.map(
+                (blockRange) =>
+                    this.blockQueue.add('requestBlock', {
+                        start: blockRange.start,
+                        end: blockRange.end,
+                    }),
+                { attempts: 3, backoff: 2000 },
+            ),
+        );
+
+        /* if (!syncedBlock) {
             // genesis block
             await this.syncBlock(0);
         } else if (syncedBlock.number < latestBlock.number) {
@@ -179,7 +126,6 @@ export class SyncService {
                 // 3. rollback
                 await this.rollback(syncedBlock.number, forkHeight);
             }
-        }
-            
+        } */
     }
 }

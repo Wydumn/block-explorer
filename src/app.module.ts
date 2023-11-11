@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
-
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-
-import { database, elastic } from './config';
+import { bullConfig, database, elastic, redis } from './config';
 import { CoreModule } from './modules/core/core.module';
 import { AppFilter, AppIntercepter, AppPipe } from './modules/core/providers';
 import { DatabaseModule } from './modules/database/database.module';
@@ -10,6 +8,7 @@ import { BlockchainModule } from './modules/blockchain/blockchain.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import { ElasticModule } from './modules/elastic/elastic.module';
+import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
     imports: [
@@ -18,12 +17,8 @@ import { ElasticModule } from './modules/elastic/elastic.module';
         ElasticModule.forRoot(elastic),
         BlockchainModule,
         ScheduleModule.forRoot(),
-        BullModule.forRoot({
-            redis: {
-                host: 'localhost',
-                port: 6379,
-            }
-        })
+        BullModule.forRoot(bullConfig),
+        RedisModule.forRoot(redis),
     ],
     providers: [
         {

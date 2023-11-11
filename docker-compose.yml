@@ -9,30 +9,45 @@ services:
       MYSQL_DATABASE: explorer
     ports:
       - 3306:3306
+    volumes:
+      - mysql_data:/data/db
       
   redis:
-    image: "redis"
+    image: redis
     ports:
       - 6379:6379
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
 
-  es01:
+  elasticsearch:
     image: elasticsearch:8.10.2
-    container_name: es01
+    container_name: elasticsearch
     environment:
       - node.name=es01
       - cluster.name=es-docker-cluster
-      - discovery.seed_hosts=es01
-      - cluster.initial_master_nodes=es01
-      - bootstrap.memory_lock=true
+      - discovery.type=single-node
+      - xpack.license.self_generated.type=basic
+      - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
       memlock:
         soft: -1
         hard: -1
     volumes:
-      - es_data:/usr/src/elasticsearch/data
+      - es_data:/usr/share/elasticsearch/data
     ports:
       - 9200:9200
 
+  kibana:
+    image: kibana:8.10.3
+    container_name: kibana
+    ports:
+      - '5601:5601'
+    depends_on:
+      - elasticsearch
+
 volumes:
   es_data:
+  redis_data:
+  mysql_data:

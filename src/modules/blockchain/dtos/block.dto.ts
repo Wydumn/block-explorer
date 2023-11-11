@@ -4,43 +4,14 @@ import { IsStartsWith0x } from "../validators/IsSartsWith0x";
 import { IsBigInt } from "class-validator-extended";
 
 export class CreateBlockDto  {
-  // 0x1b4
-  @IsNumber()
+  @IsBigInt()
   @IsNotEmpty()
-  number!: number;
-
-  // 0x + hash
-  @IsEthereumHash({
-    message: 'Invalid Ethereum Hash',
-  })
-  @IsString()
-  @IsNotEmpty()
-  hash!: string;
-
-  @IsEthereumHash({
-    message: 'Invalid Ethereum Hash',
-  })
-  @IsString()
-  @IsNotEmpty()
-  parentHash!: string;
-
-  // 0x689056015818adbe
-  @IsString()
-  @IsStartsWith0x()
-  @IsNotEmpty()
-  nonce!: string;
-
-  // 0x + account
-  @IsEthereumAddress()
-  @IsString()
-  @IsNotEmpty()
-  miner!: string;
+  baseFeePerGas!: bigint;
 
   @IsBigInt()
   @IsNotEmpty()
   difficulty!: bigint;
 
-  // 0x476574682f4c5649562f76312e302e302f6c696e75782f676f312e342e32
   @IsString()
   @IsStartsWith0x()
   @IsNotEmpty()
@@ -54,17 +25,50 @@ export class CreateBlockDto  {
   @IsNotEmpty()
   gasUsed!: bigint;
 
-  @IsNumber()
+  @IsEthereumHash({
+    message: 'Invalid Ethereum Hash',
+  })
+  @IsString()
   @IsNotEmpty()
-  timestamp!: number;
+  hash!: string;
+
+  @IsString()
+  logsBloom: string;
+
+  @IsEthereumAddress()
+  @IsString()
+  @IsNotEmpty()
+  miner!: string;
 
   @IsBigInt()
   @IsNotEmpty()
-  baseFeePerGas!: bigint;
+  nonce!: bigint;
+
+  @IsBigInt()
+  @IsNotEmpty()
+  number!: bigint;
+
+  @IsEthereumHash({
+    message: 'Invalid Ethereum Hash',
+  })
+  @IsString()
+  @IsNotEmpty()
+  parentHash!: string;
+
+  @IsEthereumHash({
+    message: 'Invalid Ethereum Hash',
+  })
+  @IsString()
+  receiptsRoot: string;
+
+
+  @IsBigInt()
+  @IsNotEmpty()
+  timestamp!: number;
   
-  /* @IsArray()
+  @IsArray()
   @IsEthereumHash({
     each: true,
   })
-  transactions: string[]; */
+  transactions: string[];
 }

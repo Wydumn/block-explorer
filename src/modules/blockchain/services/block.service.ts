@@ -1,63 +1,88 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { AddressRepository, BlockRepository } from '../repositories';
-import { CreateBlockDto } from '../dtos/block.dto';
-import { PaginateOptions } from '@/modules/database/types';
-import { paginate } from '@/modules/database/helpers';
-import { BaseService } from "@/modules/database/base";
-import { BlockEntity } from '../entities';
-import { SearchService } from './search.service';
+import { IndexService } from '@/modules/elastic/search.index';
+import { Injectable } from '@nestjs/common';
+import { ElasticsearchService } from '@nestjs/elasticsearch';
+import { Block } from 'web3';
+import { blockMapping } from '../indices/block';
 
 @Injectable()
-export class BlockService extends BaseService<BlockEntity, BlockRepository> {
-    constructor(
-        private blockRepository: BlockRepository,
-        private addressRepository: AddressRepository,
-        private searchService: SearchService,
-    ) {
-        super(blockRepository);
+export class BlockService extends IndexService {
+    protected _indexName = 'blocks';
+    constructor(esService: ElasticsearchService) {
+        super(esService);
     }
 
-    async paginate(options: PaginateOptions) {
-        return paginate(this.blockRepository.buildBaseQB(), options);
+    async createIndex(): Promise<void> {
+        await this.esService.indices.create(blockMapping);
     }
-    
-    async create(data: CreateBlockDto) {
-        const createBlockDto = {
-            ...data,
-            miner: await this.addressRepository.findOne({ where: [{ address: data.miner }] })
+
+    createBulk(block: Block) {
+        return [
+            {
+                index: {
+                    _index: this.indexName,
+                    _id: block.number,
+                },
+            },
+            {
+                ...block,
+                number: BigInt(block.number).toString(),
+                timestamp: BigInt(block.timestamp).toString(),
+            },
+        ];
+    }
+
+    async bulkInsert(blocks: Block[]) {
+        const data = blocks.flatMap((block) => this.createBulk(block));
+        const bulkResponse = await this.esService.bulk({
+            operations: data
+        });
+
+        if (bulkResponse.errors) {
+            // push to failure queue
+            // record log
+            console.log(
+                '=============== bulk insert error ============',
+                '\n',
+                bulkResponse.items.forEach((item) => console.log(item.index)),
+            );
         }
-        return await this.blockRepository.save(createBlockDto);
     }
 
-    async getLatestBlock() {
-        return await this.blockRepository
-            .createQueryBuilder('block')
-            .orderBy('block.number', 'DESC')
-            .limit(1)
-            .getOne();
-    }
+    async getLatestBlock() {}
 
-    async getAllBlocks() {
-        return await this.blockRepository.find();
+    // return first 100 blocks
+    async getBlocks() {
+        const { hits } = await this.esService.search({
+            index: this.indexName,
+            query: {},
+        });
+
+        return hits.hits.map(item => item._source);
     }
 
     async getBlockByNumber(blockNumber: number) {
-        return this.blockRepository.findOne({
-            where: [{ number: blockNumber }],
+        const { hits } = await this.esService.search({
+            index: this.indexName,
+            query: {
+                term: { number: blockNumber },
+            },
         });
+
+        return hits.hits.map(item => item._source);
     }
 
     async getBlockByHash(hash: string) {
-        return this.blockRepository.findOne({
-            where: [{ hash }],
+        const { hits } = await this.esService.search({
+            index: this.indexName,
+            query: {
+                term: { hash },
+            },
         });
+
+        return hits.hits.map(item => item._source);
     }
 
     async updateBlock() {}
 
-    async remove(blockNumber: number) {
-        const block = await this.getBlockByNumber(blockNumber);
-        return this.blockRepository.remove(block);
-    }
-
+    async remove(blockNumber: number) {}
 }

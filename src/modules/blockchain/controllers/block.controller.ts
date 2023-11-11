@@ -10,7 +10,7 @@ export class BlockController {
 
   @Get()
   async getBlocks(@Query() options: PaginateOptions) {
-    return await this.blockService.paginate(options);
+    // return await this.blockService.paginate(options);
   }
 
   @Get(':identifier')

@@ -1,33 +1,44 @@
 import { Injectable } from "@nestjs/common";
-import { JsonRpcProvider } from "ethers";
+import Web3, { Block, ETH_DATA_FORMAT } from "web3";
 
 @Injectable()
 export class EthersService {
-  private provider: JsonRpcProvider
+  private web3provider: Web3;
   constructor() {
-    // testnet https://g.w.lavanet.xyz:443/gateway/gth1/rpc-http/89056908ddb144ad3723628dd9a6f12b
-    // mainnet https://g.w.lavanet.xyz:443/gateway/eth/rpc-http/89056908ddb144ad3723628dd9a6f12b
-    // Holesky https://rpc.ankr.com/eth_holesky/225e8814d3678f7166e498bfc249501143f50af64d3a305b83c65a7139826131
-    this.provider = new JsonRpcProvider('https://rpc.ankr.com/eth_holesky/225e8814d3678f7166e498bfc249501143f50af64d3a305b83c65a7139826131');
+    this.web3provider = new Web3(new Web3.providers.HttpProvider(process.env.ANKR_RPC));
+  }
+
+  async getBlocksByRange(start: number, end: number) {
+    const batch = new this.web3provider.BatchRequest();
+    for (let i = start; i <= end; i++) {
+      batch.add({
+        "jsonrpc":"2.0",
+        "method":"eth_getBlockByNumber",
+        "params":[this.web3provider.utils.toHex(i), true],
+        "id": i
+      });
+    }
+    const response = await batch.execute({ timeout: 6000 });
+    return response.map(block => block.result as Block);
   }
 
   async getBlock(blockNumber: number) {
-    return await this.provider.getBlock(blockNumber);
+    return await this.web3provider.eth.getBlock(blockNumber, true);
   }
 
   async getLatestBlock() {
-    return await this.provider.getBlock("latest");
+    return await this.web3provider.eth.getBlock("latest", false, ETH_DATA_FORMAT);
   }
 
   async getTransaction(hash: string) {
-    return await this.provider.getTransaction(hash);
+    return await this.web3provider.eth.getTransaction(hash);
   }
 
   async getTransactionCount(address: string) {
-    return await this.provider.getTransactionCount(address);
+    return await this.web3provider.eth.getTransactionCount(address);
   }
 
   async getBalance(address: string) {
-    return await this.provider.getBalance(address);
+    return await this.web3provider.eth.getBalance(address);
   }
 }
