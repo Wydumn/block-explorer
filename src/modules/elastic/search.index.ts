@@ -1,12 +1,13 @@
 import { OnModuleInit } from "@nestjs/common";
 import { ElasticsearchService } from '@nestjs/elasticsearch';
-import { IndexName } from "./types";
+import { AppLoggerService } from "../logger/logger.service";
 
 
 export abstract class IndexService implements OnModuleInit {
   protected _indexName: string;
   constructor(
-    protected esService: ElasticsearchService
+    protected esService: ElasticsearchService,
+    protected logger: AppLoggerService,
   ) {}
 
   async onModuleInit() {
@@ -17,7 +18,7 @@ export abstract class IndexService implements OnModuleInit {
         this.createIndex();
       }
     } catch (err) {
-      console.log("===== create index error ============", err)
+      this.logger.error(`[FAILED INDEX]: ${this.indexName} index create failed, ${err}`);
     }
   }
 

@@ -9,6 +9,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import { ElasticModule } from './modules/elastic/elastic.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { LoggerModule } from './modules/logger/logger.module';
 
 @Module({
     imports: [
@@ -19,6 +20,7 @@ import { RedisModule } from './modules/redis/redis.module';
         ScheduleModule.forRoot(),
         BullModule.forRoot(bullConfig),
         RedisModule.forRoot(redis),
+        LoggerModule.forRoot(),
     ],
     providers: [
         {

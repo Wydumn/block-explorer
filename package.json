@@ -38,6 +38,7 @@
     "fastify": "^4.23.2",
     "ioredis": "^5.3.2",
     "lodash": "^4.17.21",
+    "log4js": "^6.9.1",
     "mysql2": "^3.6.1",
     "nestapp": "link:",
     "piscina": "^4.1.0",

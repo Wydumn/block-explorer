@@ -3,12 +3,13 @@ import { Injectable } from '@nestjs/common';
 import { ElasticsearchService } from '@nestjs/elasticsearch';
 import { Block } from 'web3';
 import { blockMapping } from '../indices/block';
+import { AppLoggerService } from '@/modules/logger/logger.service';
 
 @Injectable()
 export class BlockService extends IndexService {
     protected _indexName = 'blocks';
-    constructor(esService: ElasticsearchService) {
-        super(esService);
+    constructor(esService: ElasticsearchService, logger: AppLoggerService) {
+        super(esService, logger);
     }
 
     async createIndex(): Promise<void> {
@@ -33,19 +34,9 @@ export class BlockService extends IndexService {
 
     async bulkInsert(blocks: Block[]) {
         const data = blocks.flatMap((block) => this.createBulk(block));
-        const bulkResponse = await this.esService.bulk({
+        await this.esService.bulk({
             operations: data
         });
-
-        if (bulkResponse.errors) {
-            // push to failure queue
-            // record log
-            console.log(
-                '=============== bulk insert error ============',
-                '\n',
-                bulkResponse.items.forEach((item) => console.log(item.index)),
-            );
-        }
     }
 
     async getLatestBlock() {}

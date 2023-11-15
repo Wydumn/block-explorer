@@ -1,11 +1,14 @@
+import { AppLoggerService } from "@/modules/logger/logger.service";
 import { Injectable } from "@nestjs/common";
 import Web3, { Block, ETH_DATA_FORMAT } from "web3";
 
 @Injectable()
 export class EthersService {
   private web3provider: Web3;
-  constructor() {
-    this.web3provider = new Web3(new Web3.providers.HttpProvider(process.env.ANKR_RPC));
+  constructor(
+    private logger: AppLoggerService,
+  ) {
+    this.web3provider = new Web3(new Web3.providers.HttpProvider(process.env.PUBLICNODE_RPC));
   }
 
   async getBlocksByRange(start: number, end: number) {
@@ -18,7 +21,14 @@ export class EthersService {
         "id": i
       });
     }
-    const response = await batch.execute({ timeout: 6000 });
+
+    let response;
+    try {
+      response = await batch.execute({ timeout: 6000 });
+    } catch (err) {
+      this.logger.error(`[FAILED RPC REQUEST]: block number from ${start} to ${end} rpc request failed, ${err}`, EthersService.name);
+    }
+
     return response.map(block => block.result as Block);
   }
 
